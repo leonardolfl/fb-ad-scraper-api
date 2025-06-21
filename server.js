@@ -1,62 +1,78 @@
 const express = require('express');
 const cors = require('cors');
-const { chromium } = require('playwright');
+const axios = require('axios');
+const cheerio = require('cheerio');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.API_KEY || 'sk_1a2b3c4d5e6f7g8h3434G3'; // valor padrão local (opcional)
+
+// Chave de API para PROTEGER o seu endpoint no Railway.
+const YOUR_API_KEY = process.env.API_KEY || 'sk_1a2b3c4d5e6f7g8h3434G3';
+
+// Chave de API para USAR o serviço do ScrapingBee.
+// NOTA TÉCNICA: O ideal é que esta chave também seja uma variável de ambiente, mas estamos usando-a diretamente conforme sua solicitação para agilizar.
+const SCRAPINGBEE_API_KEY = 'JSA3U856N8OV8D6U0UQGV34CYYO5NV1NP8KWM5F6QCY7PYTOPG8WETZIL8V6KZ8WYZXKZOQQEKH906CP';
 
 app.use(cors());
 
+// Middleware de autenticação (sem alterações)
+app.use((req, res, next) => {
+    const providedApiKey = req.headers['x-api-key'];
+    if (providedApiKey === YOUR_API_KEY) {
+        next();
+    } else {
+        console.log(`[AUTH-FAIL] Acesso bloqueado. Chave fornecida: ${providedApiKey}`);
+        res.status(401).send({ error: 'Unauthorized: Chave de API inválida ou ausente.' });
+    }
+});
+
 app.get('/get-ad-count', async (req, res) => {
-  const url = req.query.url;
-  const token = req.headers['x-api-key'];
+    const urlToScrape = req.query.url;
+    console.log(`[REQUEST] Recebida solicitação para URL: ${urlToScrape}`);
 
-  if (token !== API_KEY) {
-    return res.status(403).send({ error: 'Unauthorized: Invalid API key' });
-  }
+    if (!urlToScrape) {
+        return res.status(400).send({ error: 'Bad Request: O parâmetro "url" é obrigatório.' });
+    }
 
-  if (!url) return res.status(400).send({ error: 'URL is required' });
+    try {
+        console.log(`[SCRAPINGBEE] Enviando requisição para a API do ScrapingBee...`);
+        
+        // Monta a requisição para a API do ScrapingBee
+        const response = await axios.get('https://app.scrapingbee.com/api/v1/', {
+            params: {
+                api_key: SCRAPINGBEE_API_KEY,
+                url: urlToScrape,
+                render_js: 'true', // Essencial: Pede ao ScrapingBee para renderizar o JavaScript da página.
+                'wait_for': 'div[role="heading"][aria-level="3"]' // Otimização: Pede para esperar este seletor aparecer.
+            }
+        });
+        
+        console.log(`[SCRAPINGBEE] Resposta recebida. Status: ${response.status}. Processando HTML...`);
+        
+        // Carrega o HTML recebido no Cheerio (um "jQuery para servidor")
+        const $ = cheerio.load(response.data);
+        
+        // Usa o mesmo seletor de antes para encontrar e extrair o texto
+        const selector = 'div[role="heading"][aria-level="3"]';
+        const resultText = $(selector).text().trim();
 
-  console.log(`🟡 Iniciando scraping para: ${url}`);
+        if (resultText) {
+            console.log(`[SUCCESS] Texto extraído: "${resultText}"`);
+            res.status(200).send({ result: resultText });
+        } else {
+            console.error(`[EXTRACTION-FAIL] O seletor "${selector}" não foi encontrado no HTML retornado pelo ScrapingBee.`);
+            res.status(404).send({ error: 'Seletor não encontrado na página renderizada.' });
+        }
 
-  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
-  const page = await browser.newPage();
-
-  // Cabeçalhos para simular um navegador real
-  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36');
-  await page.setExtraHTTPHeaders({ 'accept-language': 'en-US,en;q=0.9' });
-
-  try {
-    await page.goto(url, { timeout: 40000 });
-    console.log(`✅ Página carregada: ${url}`);
-
-    await page.waitForLoadState('networkidle'); // espera tudo carregar
-    await page.waitForSelector('div[role="heading"][aria-level="3"]', { timeout: 25000 });
-    console.log('✅ Seletor encontrado! Extraindo texto...');
-
-    const result = await page.$eval(
-      'div[role="heading"][aria-level="3"]',
-      el => el.textContent.trim()
-    );
-
-    await browser.close();
-    console.log(`✅ Resultado extraído: ${result}`);
-
-    res.send({ result });
-  } catch (err) {
-    console.log('❌ ERRO no scraping:', err.message);
-    const html = await page.content();
-    await browser.close();
-
-    res.status(500).send({
-      error: 'Failed to extract data',
-      detail: err.message,
-      htmlSnippet: html.slice(0, 1000)
-    });
-  }
+    } catch (error) {
+        console.error('[CRITICAL-ERROR] Falha ao chamar a API do ScrapingBee:', error.response ? error.response.data : error.message);
+        res.status(502).send({
+            error: 'Bad Gateway: Falha ao obter dados do serviço de scraping.',
+            details: error.response ? error.response.data : 'Erro de comunicação com a API externa.'
+        });
+    }
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+    console.log(`✅ Proxy de Scraping Leve iniciado na porta ${PORT}. Aguardando requisições.`);
 });
