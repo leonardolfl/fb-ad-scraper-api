@@ -4,7 +4,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // Chave de API para PROTEGER o seu endpoint.
 const YOUR_API_KEY = process.env.API_KEY || 'sk_1a2b3c4d5e6f7g8h3434G3';
