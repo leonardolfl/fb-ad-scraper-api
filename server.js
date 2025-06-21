@@ -1,40 +1,43 @@
-const express = require('express');
-const cors = require('cors');
-const { chromium } = require('playwright');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.API_KEY || 'sk_1a2b3c4d5e6f7g8h3434G3'; // Pode definir no Railway como variável de ambiente
-
-app.use(cors());
-
 app.get('/get-ad-count', async (req, res) => {
-    const url = req.query.url;
-    const token = req.headers['x-api-key'];
+  const url = req.query.url;
+  const token = req.headers['x-api-key'];
 
-    if (token !== API_KEY) {
-        return res.status(403).send({ error: 'Unauthorized: Invalid API key' });
-    }
+  if (token !== process.env.API_KEY) {
+    return res.status(403).send({ error: 'Unauthorized: Invalid API key' });
+  }
 
-    if (!url) return res.status(400).send({ error: 'URL is required' });
+  if (!url) return res.status(400).send({ error: 'URL is required' });
 
-    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
-    const page = await browser.newPage();
+  console.log(`🟡 Iniciando scraping para: ${url}`);
 
-    try {
-        await page.goto(url, { timeout: 30000 });
-        await page.waitForSelector('div[role="heading"][aria-level="3"]', { timeout: 20000 });
+  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+  const page = await browser.newPage();
 
-        const result = await page.$eval('div[role="heading"][aria-level="3"]', el => el.textContent.trim());
-        await browser.close();
+  try {
+    await page.goto(url, { timeout: 40000 });
+    console.log(`✅ Página carregada: ${url}`);
 
-        res.send({ result });
-    } catch (err) {
-        await browser.close();
-        res.status(500).send({ error: 'Failed to extract data', detail: err.message });
-    }
-});
+    await page.waitForSelector('div[role="heading"][aria-level="3"]', { timeout: 25000 });
+    console.log('✅ Seletor encontrado! Extraindo texto...');
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    const result = await page.$eval(
+      'div[role="heading"][aria-level="3"]',
+      el => el.textContent.trim()
+    );
+
+    await browser.close();
+    console.log(`✅ Resultado extraído: ${result}`);
+
+    res.send({ result });
+  } catch (err) {
+    console.log('❌ ERRO no scraping:', err.message);
+    const html = await page.content(); // salva o HTML da página para entender o erro
+    await browser.close();
+
+    res.status(500).send({
+      error: 'Failed to extract data',
+      detail: err.message,
+      htmlSnippet: html.slice(0, 1000) // mostra só o início
+    });
+  }
 });
