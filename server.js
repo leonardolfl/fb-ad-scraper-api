@@ -40,12 +40,14 @@ app.get('/get-ad-count', async (req, res) => {
     }
 
     try {
-        console.log(`[SCRAPINGBEE] Enviando requisição com PREMIUM PROXY e JS SCENARIO...`);
+        console.log(`[SCRAPINGBEE] Enviando requisição com TÁTICA AVANÇADA (Clique + Scroll)...`);
         
         const jsScenario = {
             "instructions": [
-                { "wait": 2500 },
-                { "scroll_y": 1000 },
+                { "wait_for": "div[aria-label='Rejeitar opcionais']" }, 
+                { "click": "div[aria-label='Permitir todos os cookies']" }, 
+                { "wait": 2500 }, 
+                { "scroll_y": 1000 }, 
                 { "wait": 2000 }
             ]
         };
@@ -66,14 +68,21 @@ app.get('/get-ad-count', async (req, res) => {
         
         const $ = cheerio.load(response.data);
         const selector = 'div[role="heading"][aria-level="3"]';
-        const resultText = $(selector).text().trim();
+        const rawText = $(selector).text().trim();
+        console.log(`[DEBUG] Texto bruto extraído: "${rawText}"`);
 
-        if (resultText && !resultText.toLowerCase().includes('ad blocker')) {
-            console.log(`[SUCCESS] Texto extraído: "${resultText}"`);
+        // ======================= LÓGICA DE LIMPEZA FINAL =======================
+        // Usa uma expressão regular para encontrar o padrão de resultados desejado.
+        const match = rawText.match(/(>?[0-9,.]+\+?\s*results?)/i);
+        const resultText = match ? match[0] : null; // Pega a primeira correspondência exata.
+        // =======================================================================
+
+        if (resultText) {
+            console.log(`[SUCCESS] Texto extraído e limpo: "${resultText}"`);
             res.status(200).send({ result: resultText });
         } else {
-            console.error(`[EXTRACTION-FAIL] O seletor retornou um texto inesperado: "${resultText}"`);
-            res.status(404).send({ error: 'Seletor retornou texto de bloqueio ou não foi encontrado.' });
+            console.error(`[EXTRACTION-FAIL] Padrão de resultados não encontrado no texto bruto: "${rawText}"`);
+            res.status(404).send({ error: 'Padrão de resultados não encontrado no seletor.' });
         }
 
     } catch (error) {
@@ -86,5 +95,5 @@ app.get('/get-ad-count', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`✅ Proxy de Scraping (CHAVE FIXA) iniciado na porta ${PORT}.`);
+    console.log(`✅ Proxy de Scraping (LIMPEZA FINAL) iniciado na porta ${PORT}.`);
 });
