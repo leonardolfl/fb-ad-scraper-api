@@ -6,28 +6,23 @@ const cheerio = require('cheerio');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Carrega a SUA chave de API (Railway) de forma segura a partir das variáveis de ambiente.
-const YOUR_API_KEY = sk_1a2b3c4d5e6f7g8h3434G3;
+// ======================= ALTERAÇÃO CRUCIAL =======================
+// A SUA chave de API foi colocada diretamente no código, conforme solicitado.
+const YOUR_API_KEY = 'sk_1a2b3c4d5e6f7g8h3434G3';
+// ===============================================================
 
 // Chave de API do serviço ScrapingBee.
 const SCRAPINGBEE_API_KEY = 'JSA3U856N8OV8D6U0UQGV34CYYO5NV1NP8KWM5F6QCY7PYTOPG8WETZIL8V6KZ8WYZXKZOQQEKH906CP';
 
 app.use(cors());
 
-// Middleware de autenticação com logs de diagnóstico para resolver o erro 401.
+// Middleware de autenticação
 app.use((req, res, next) => {
     const providedApiKey = req.headers['x-api-key'];
-    
-    // --- LINHAS DE DIAGNÓSTICO ---
-    console.log(`[DIAGNÓSTICO] Chave de API recebida no header: '${providedApiKey}'`);
-    console.log(`[DIAGNÓSTICO] Chave de API esperada do ambiente Railway: '${YOUR_API_KEY}'`);
-    // ----------------------------
-
     if (providedApiKey && providedApiKey === YOUR_API_KEY) {
-        console.log('[AUTH-SUCCESS] As chaves de API correspondem. Acesso permitido.');
         next();
     } else {
-        console.log('[AUTH-FAIL] As chaves de API NÃO correspondem. Acesso negado.');
+        console.log(`[AUTH-FAIL] Acesso negado. Chave recebida: '${providedApiKey}'`);
         res.status(401).send({ error: 'Unauthorized: Chave de API inválida ou ausente.' });
     }
 });
@@ -78,5 +73,5 @@ app.get('/get-ad-count', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`✅ Proxy de Scraping (Diagnóstico Final) iniciado na porta ${PORT}.`);
+    console.log(`✅ Proxy de Scraping (CHAVE DIRETA) iniciado na porta ${PORT}.`);
 });
