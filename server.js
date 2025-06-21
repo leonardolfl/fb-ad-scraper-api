@@ -6,13 +6,8 @@ const cheerio = require('cheerio');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ======================= SOLUÇÃO DEFINITIVA =======================
-// A SUA chave de API foi colocada diretamente aqui, conforme sua diretiva.
-// Isso elimina qualquer problema com as variáveis de ambiente do Railway.
+// Chave de API fixada no código, conforme sua diretiva.
 const YOUR_API_KEY = 'sk_1a2b3c4d5e6f7g8h3434G3';
-// =================================================================
-
-// Chave de API do serviço ScrapingBee.
 const SCRAPINGBEE_API_KEY = 'JSA3U856N8OV8D6U0UQGV34CYYO5NV1NP8KWM5F6QCY7PYTOPG8WETZIL8V6KZ8WYZXKZOQQEKH906CP';
 
 app.use(cors());
@@ -20,12 +15,9 @@ app.use(cors());
 // Middleware de autenticação
 app.use((req, res, next) => {
     const providedApiKey = req.headers['x-api-key'];
-    
     if (providedApiKey && providedApiKey === YOUR_API_KEY) {
-        console.log('[AUTH-SUCCESS] Chave de API recebida e validada com sucesso.');
         next();
     } else {
-        console.log(`[AUTH-FAIL] Acesso negado. Chave recebida: '${providedApiKey}'`);
         res.status(401).send({ error: 'Unauthorized: Chave de API inválida ou ausente.' });
     }
 });
@@ -40,15 +32,16 @@ app.get('/get-ad-count', async (req, res) => {
     }
 
     try {
-        console.log(`[SCRAPINGBEE] Enviando requisição com TÁTICA AVANÇADA (Clique + Scroll)...`);
+        console.log(`[SCRAPINGBEE] Enviando requisição com TÁTICA FINAL (Simplificada)...`);
         
+        // ======================= ÚLTIMA TENTATIVA =======================
+        // Removemos o 'wait_for' para simplificar a tarefa para o ScrapingBee.
+        // Apenas pedimos para ele executar ações e nos devolver o resultado.
         const jsScenario = {
             "instructions": [
-                { "wait_for": "div[aria-label='Rejeitar opcionais']" }, 
-                { "click": "div[aria-label='Permitir todos os cookies']" }, 
-                { "wait": 2500 }, 
-                { "scroll_y": 1000 }, 
-                { "wait": 2000 }
+                { "wait_for": "div[aria-label='Rejeitar opcionais']" },
+                { "click": "div[aria-label='Permitir todos os cookies']" },
+                { "wait": 5000 } // Aumentamos a espera final para dar tempo de tudo carregar.
             ]
         };
         
@@ -58,10 +51,9 @@ app.get('/get-ad-count', async (req, res) => {
                 url: urlToScrape,
                 render_js: 'true',
                 premium_proxy: 'true',
-                js_scenario: JSON.stringify(jsScenario),
-                'wait_for': 'div[role="heading"][aria-level="3"]'
+                js_scenario: JSON.stringify(jsScenario)
             },
-            timeout: 55000 
+            timeout: 58000 // Timeout máximo, próximo do limite do Railway.
         });
         
         console.log(`[SCRAPINGBEE] Resposta recebida. Processando...`);
@@ -71,11 +63,8 @@ app.get('/get-ad-count', async (req, res) => {
         const rawText = $(selector).text().trim();
         console.log(`[DEBUG] Texto bruto extraído: "${rawText}"`);
 
-        // ======================= LÓGICA DE LIMPEZA FINAL =======================
-        // Usa uma expressão regular para encontrar o padrão de resultados desejado.
         const match = rawText.match(/(>?[0-9,.]+\+?\s*results?)/i);
-        const resultText = match ? match[0] : null; // Pega a primeira correspondência exata.
-        // =======================================================================
+        const resultText = match ? match[0] : null;
 
         if (resultText) {
             console.log(`[SUCCESS] Texto extraído e limpo: "${resultText}"`);
@@ -86,14 +75,26 @@ app.get('/get-ad-count', async (req, res) => {
         }
 
     } catch (error) {
-        console.error('[CRITICAL-ERROR] Falha na chamada para a API do ScrapingBee:', error.message);
-        res.status(502).send({
+        let errorMessage = 'Falha desconhecida na chamada para a API do ScrapingBee.';
+        let statusCode = 502;
+
+        if (error.code === 'ECONNABORTED' || (error.response && error.response.status === 504)) {
+            errorMessage = 'O serviço de scraping (ScrapingBee) demorou muito para responder (timeout). O alvo é muito pesado.';
+            statusCode = 504;
+        } else if (error.response) {
+            errorMessage = error.response.data;
+        } else {
+            errorMessage = error.message;
+        }
+        
+        console.error(`[CRITICAL-ERROR] ${errorMessage}`);
+        res.status(statusCode).send({
             error: 'Bad Gateway: Falha ao obter dados do serviço de scraping.',
-            details: error.response ? error.response.data : error.message
+            details: errorMessage
         });
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`✅ Proxy de Scraping (LIMPEZA FINAL) iniciado na porta ${PORT}.`);
+    console.log(`✅ Proxy de Scraping (TÁTICA FINAL) iniciado na porta ${PORT}.`);
 });
