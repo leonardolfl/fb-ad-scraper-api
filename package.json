@@ -1,7 +1,7 @@
 {
   "name": "fb-ad-scraper-api",
-  "version": "1.2.0",
-  "description": "Leightweight proxy to scrape Facebook Ad Library via ScrapingBee API with Premium Proxies",
+  "version": "1.3.0",
+  "description": "Final lightweight proxy to scrape Facebook Ad Library via ScrapingBee API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
