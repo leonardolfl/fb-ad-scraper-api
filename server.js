@@ -1,67 +1,40 @@
 const express = require('express');
+const cors = require('cors');
 const { chromium } = require('playwright');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.API_KEY;
+const API_KEY = process.env.API_KEY || 'sk_1a2b3c4d5e6f7g8h3434G3'; // Pode definir no Railway como variável de ambiente
 
-// Middleware de autenticação (sem alterações)
-app.use((req, res, next) => {
-    const providedApiKey = req.headers['x-api-key'];
-    if (!API_KEY || providedApiKey === API_KEY) {
-        next();
-    } else {
-        console.log(`[AUTH-FAIL] Tentativa de acesso bloqueada. Chave fornecida: ${providedApiKey}`);
-        res.status(401).send({ error: 'Unauthorized: Invalid or missing API Key.' });
-    }
-});
+app.use(cors());
 
 app.get('/get-ad-count', async (req, res) => {
-    const urlToScrape = req.query.url;
-    console.log(`[${new Date().toISOString()}] ==> Requisição recebida para URL: ${urlToScrape}`);
+    const url = req.query.url;
+    const token = req.headers['x-api-key'];
 
-    if (!urlToScrape) {
-        console.log(`[BAD-REQUEST] Requisição sem parâmetro 'url'.`);
-        return res.status(400).send({ error: 'Bad Request: Missing "url" query parameter.' });
+    if (token !== API_KEY) {
+        return res.status(403).send({ error: 'Unauthorized: Invalid API key' });
     }
 
-    let browser = null;
+    if (!url) return res.status(400).send({ error: 'URL is required' });
+
+    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+    const page = await browser.newPage();
+
     try {
-        console.log(`[PLAYWRIGHT-START] Iniciando instância do browser...`);
-        // Aumentando o timeout de inicialização do browser para dar mais tempo em ambientes com poucos recursos.
-        browser = await chromium.launch({ headless: true, timeout: 90000 }); 
-        console.log(`[PLAYWRIGHT-SUCCESS] Browser iniciado com sucesso.`);
+        await page.goto(url, { timeout: 30000 });
+        await page.waitForSelector('div[role="heading"][aria-level="3"]', { timeout: 20000 });
 
-        const context = await browser.newContext({
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36'
-        });
-        const page = await context.newPage();
-        console.log(`[PAGE-ACTION] Navegando para a URL...`);
+        const result = await page.$eval('div[role="heading"][aria-level="3"]', el => el.textContent.trim());
+        await browser.close();
 
-        // Timeout da navegação aumentado para 60 segundos
-        await page.goto(urlToScrape, { timeout: 60000, waitUntil: 'domcontentloaded' });
-        console.log(`[PAGE-SUCCESS] Página carregada. Aguardando pelo seletor...`);
-
-        const selector = 'div[role="heading"][aria-level="3"]';
-        // Timeout do seletor aumentado para 30 segundos
-        await page.waitForSelector(selector, { timeout: 30000 });
-        console.log(`[SELECTOR-SUCCESS] Seletor encontrado.`);
-
-        const resultText = await page.$eval(selector, el => el.textContent.trim());
-        console.log(`[EXTRACTION-SUCCESS] Texto extraído: "${resultText}"`);
-        
-        res.status(200).send({ result: resultText });
-
-    } catch (error) {
-        console.error(`[CRITICAL-ERROR] Falha no processo de scraping:`, error);
-        res.status(500).send({ error: 'Failed to extract data from the page.', details: error.message });
-    } finally {
-        if (browser) {
-            await browser.close();
-            console.log(`[BROWSER-CLOSE] Instância do browser fechada.`);
-        }
+        res.send({ result });
+    } catch (err) {
+        await browser.close();
+        res.status(500).send({ error: 'Failed to extract data', detail: err.message });
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`✅ Servidor de Scraping seguro iniciado e ouvindo na porta ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
